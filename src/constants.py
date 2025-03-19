@@ -53,6 +53,9 @@ URL = HOME_URL + "/bdpub/procquery.php"
 # Acceso al fichero robots.txt de la web(si existe)
 ROBOTS_URL = HOME_URL + "/robots.txt"
 
+
+JSON_OUTPUT_FILE = "output_data.json"  # Fichero json de salida
+
 # User agent del web scraper
 USER_AGENT = 'ws-uoc-pra1'
 

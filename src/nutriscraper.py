@@ -20,12 +20,26 @@ import requests
 import sys
 import time
 import urllib.robotparser
+import json
+import os
 
 class NutriScraper:
     # Método constructor: crea el archivo de salida y genera las líneas de cabecera
     def __init__(self):
-        # Se abre un fichero CSV para escribir los resultados del proceso de web scraping y se escriben los
-        # campos de cabecera
+        # Se inicializa el objeto que mantendrá los resultados
+        self.results = []
+        
+        # Se verifica si ya existe un archivo JSON con datos previos
+        if os.path.exists(constants.JSON_OUTPUT_FILE) and os.path.getsize(constants.JSON_OUTPUT_FILE) > 0:
+            try:
+                with open(constants.JSON_OUTPUT_FILE, 'r', encoding='utf-8') as json_file:
+                    self.results = json.load(json_file)
+                print(f"Cargados {len(self.results)} registros existentes del archivo JSON")
+            except json.JSONDecodeError:
+                print("Error al cargar el archivo JSON existente. Se creará uno nuevo.")
+                self.results = []
+        
+        # Para mantener compatibilidad, también se inicializa el archivo CSV
         self._write2csv(constants.CSV_OUTPUT_FILE, constants.CSV_HEADER, 'w')
 
     # Método que ejecuta el proceso de scraping: se conecta a la URL, descarga la información y gestiona su
@@ -85,8 +99,16 @@ class NutriScraper:
 
     # Obtención de la información nutricional de un listado de alimentos pasado como parámetro 
     def _getFoodDetails(self, foodList):
+        # Lista de IDs ya procesados para evitar duplicados
+        processed_ids = {item.get('f_id', None) for item in self.results}
+        
         # Se solicita la información asociada a cada alimento realizando una petición por cada id encontrado
         for elemID in foodList:
+            # Saltamos los elementos ya procesados en ejecuciones previas
+            if elemID in processed_ids:
+                print(f"El elemento {elemID} ya fue procesado anteriormente. Omitiendo.")
+                continue
+                
             try:
                 # Diccionario donde se almacena la información de cada alimento
                 elemInfoDict = {}
@@ -130,6 +152,10 @@ class NutriScraper:
                 # Se escribe la información a fichero
                 print("Escritura a fichero del registro")
                 self._write2csv(constants.CSV_OUTPUT_FILE, self._dictionary2csv(elemInfoDict), 'a')
+                
+                # Guardar en el objeto de resultados y actualizar el archivo JSON
+                self.results.append(elemInfoDict)
+                self._write2json()
 
             # Se captura la excepción de error de atributos
             except AttributeError as error:
@@ -165,3 +191,13 @@ class NutriScraper:
         except Exception as exception:
             print("No se ha podido escribir en fichero [" + str(exception) + "]. Se aborta el programa")
             sys.exit(1)
+
+    # Método que escribe los resultados al archivo JSON
+    def _write2json(self):
+        try:
+            with open(constants.JSON_OUTPUT_FILE, 'w', encoding='utf-8') as json_file:
+                json.dump(self.results, json_file, ensure_ascii=False, indent=2)
+        except Exception as exception:
+            print(f"No se ha podido escribir en el archivo JSON [{str(exception)}]")
+            # No abortamos el programa para permitir que se siga ejecutando
+            # y guardar lo que se pueda en el archivo CSV
